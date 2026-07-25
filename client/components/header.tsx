@@ -5,7 +5,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const header = () => {
   return (
-    <header className="w-full border-b border-slate-200/70 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <header className="w-full border-b border-slate-200/70 bg-white/80 backdrop-blur supports-backdrop-filter:bg-white/60">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <SidebarTrigger />
