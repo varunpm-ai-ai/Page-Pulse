@@ -22,8 +22,8 @@ export function createServerInstance() {
 export function startServer() {
   const { server } = createServerInstance()
 
-  server.listen(env.port, env.host, () => {
-    console.log(`Server running at http://${env.host}:${env.port}`)
+  server.listen(env.port, () => {
+    console.log(`Server running on port ${env.port}`)
   })
 
   return server
