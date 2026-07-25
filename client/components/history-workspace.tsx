@@ -18,13 +18,13 @@ import { type PageAudit, readAuditHistory } from "@/lib/audit-history";
 
 function formatDate(value?: string) {
   if (!value) {
-    return "Unknown"
+    return "Unknown";
   }
 
-  const date = new Date(value)
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Unknown"
+    return "Unknown";
   }
 
   return new Intl.DateTimeFormat("en-US", {
@@ -32,7 +32,7 @@ function formatDate(value?: string) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(date)
+  }).format(date);
 }
 
 function statusLabel(status: number) {
@@ -54,6 +54,9 @@ export function HistoryWorkspace() {
     const loadHistory = () => {
       setHistory(readAuditHistory());
     };
+    const validHistory = history.filter(
+      (entry) => entry && entry.id && entry.createdAt && entry.url,
+    );
 
     loadHistory();
 
@@ -106,12 +109,12 @@ export function HistoryWorkspace() {
           <CardContent>
             <div className="max-h-[70dvh] space-y-3 overflow-y-auto pr-1">
               {history.length ? (
-                history.map((entry) => {
+                history.map((entry, index) => {
                   const active = selectedEntry?.id === entry.id;
 
                   return (
                     <Button
-                      key={entry.id}
+                      key={`${entry.id}-${index}`}
                       type="button"
                       variant={active ? "secondary" : "outline"}
                       onClick={() => setSelectedId(entry.id)}

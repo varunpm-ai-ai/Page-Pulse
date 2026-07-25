@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { analysisClient } from "@/lib/analysis-client";
 import type {
+  BackendAnalysisReport,
   BackendAnalysisError,
   BackendAnalysisSuccess,
 } from "@/lib/analysis-types";
@@ -41,15 +42,15 @@ export function InspectWorkspace() {
   const [url, setUrl] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [latestResult, setLatestResult] = useState<PageAudit | null>(
-    history[0] ?? null,
-  );
+  const [latestResult, setLatestResult] = useState<PageAudit | null>(null);
   const progressState = useAnalysisProgress();
   useEffect(() => {
-    setHistory(readAuditHistory());
+    const storedHistory = readAuditHistory();
+    setHistory(storedHistory);
+    setLatestResult(storedHistory[0] ?? null);
   }, []);
 
-  const recentItems = useMemo(() => history.slice(0, 3), [history]);
+  const recentItems = Array.isArray(history) ? history.slice(0, 3) : [];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,23 +67,25 @@ export function InspectWorkspace() {
 
     try {
       const response = await analysisClient.post<
-        BackendAnalysisSuccess | BackendAnalysisError
+        BackendAnalysisSuccess | BackendAnalysisError | BackendAnalysisReport
       >("/api/analyze", {
         url: nextUrl,
         socketId: progressState.socketId,
       });
 
-      const payload = response.data as
-        | BackendAnalysisSuccess
-        | BackendAnalysisError;
+      const payload = response.data;
 
-      if ("success" in payload) {
-        if (!payload.success) {
+      if (response.status < 200 || response.status >= 300) {
+        if (isBackendError(payload)) {
           throw new Error(
             payload.error?.message ?? "Unable to analyze that URL.",
           );
         }
 
+        throw new Error("Unable to analyze that URL.");
+      }
+
+      if (isBackendSuccess(payload)) {
         const mapped: PageAudit = {
           id: payload.analysisId,
           url: payload.report.requestedUrl,
@@ -101,9 +104,31 @@ export function InspectWorkspace() {
         setHistory(updated);
         setLatestResult(mapped);
         setUrl(payload.report.requestedUrl);
+      } else if (isBackendReport(payload)) {
+        const requestedUrl =
+          typeof payload.requestedUrl === "string" ? payload.requestedUrl : nextUrl;
+        const mapped: PageAudit = {
+          id: crypto.randomUUID(),
+          url: requestedUrl,
+          status: payload.status,
+          responseTimeMs: payload.responseTimeMs,
+          pageTitle: payload.pageTitle,
+          metaDescription: payload.metaDescription,
+          h1Count: payload.h1Count,
+          imagesMissingAltText: payload.imagesMissingAltText,
+          approximateWordCount: payload.approximateWordCount,
+          createdAt: new Date().toISOString(),
+        };
+
+        const updated = appendAuditEntry(mapped);
+
+        setHistory(updated);
+        setLatestResult(mapped);
+        setUrl(mapped.url);
       } else {
         throw new Error("Unexpected response from the server.");
       }
+
       progressState.finish();
     } catch (analysisError) {
       const message =
@@ -192,9 +217,9 @@ export function InspectWorkspace() {
           </CardHeader>
           <CardContent className="space-y-3">
             {recentItems.length ? (
-              recentItems.map((item) => (
+              recentItems.map((item, index) => (
                 <Link
-                  key={item.id}
+                  key={`${item.id}-${item.createdAt}-${index}`}
                   href="/history"
                   className="flex items-center justify-between rounded-xl border border-border/60 bg-background px-4 py-3 text-left transition-colors hover:bg-muted/50"
                 >
@@ -229,6 +254,43 @@ export function InspectWorkspace() {
 }
 
 export default InspectWorkspace;
+
+function isBackendSuccess(
+  value: unknown,
+): value is BackendAnalysisSuccess {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "success" in value &&
+    (value as BackendAnalysisSuccess).success === true &&
+    "report" in value
+  );
+}
+
+function isBackendError(value: unknown): value is BackendAnalysisError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "success" in value &&
+    (value as BackendAnalysisError).success === false
+  );
+}
+
+function isBackendReport(
+  value: unknown,
+): value is BackendAnalysisReport & Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as BackendAnalysisReport).status === "number" &&
+    typeof (value as BackendAnalysisReport).responseTimeMs === "number" &&
+    typeof (value as BackendAnalysisReport).pageTitle === "string" &&
+    typeof (value as BackendAnalysisReport).metaDescription === "string" &&
+    typeof (value as BackendAnalysisReport).h1Count === "number" &&
+    typeof (value as BackendAnalysisReport).imagesMissingAltText === "number" &&
+    typeof (value as BackendAnalysisReport).approximateWordCount === "number"
+  )
+}
 
 function readAuditHistory(): PageAudit[] {
   if (typeof window === "undefined") {

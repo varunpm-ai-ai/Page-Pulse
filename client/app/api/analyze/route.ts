@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
 
+import type {
+  BackendAnalysisError,
+  BackendAnalysisSuccess,
+} from "@/lib/analysis-types"
 import { analyzeHtml } from "@/lib/page-analysis"
 
 const USER_AGENT =
@@ -12,6 +16,28 @@ function normalizeUrl(rawUrl: string) {
   }
 
   return new URL(trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`)
+}
+
+function toSuccessResponse(
+  requestedUrl: string,
+  finalUrl: string,
+  analysis: ReturnType<typeof analyzeHtml>,
+): BackendAnalysisSuccess {
+  return {
+    success: true,
+    analysisId: crypto.randomUUID(),
+    report: {
+      requestedUrl,
+      finalUrl,
+      status: analysis.status,
+      responseTimeMs: analysis.responseTimeMs,
+      pageTitle: analysis.pageTitle,
+      metaDescription: analysis.metaDescription,
+      h1Count: analysis.h1Count,
+      imagesMissingAltText: analysis.imagesMissingAltText,
+      approximateWordCount: analysis.approximateWordCount,
+    },
+  }
 }
 
 export async function POST(request: Request) {
@@ -40,12 +66,21 @@ export async function POST(request: Request) {
       Date.now() - startedAt
     )
 
-    return NextResponse.json(result)
+    return NextResponse.json(
+      toSuccessResponse(targetUrl.toString(), response.url || targetUrl.toString(), result)
+    )
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to analyze that URL."
+    const status = message === "Please enter a website URL." ? 400 : 502
 
-    return NextResponse.json({ error: message }, { status: 400 })
+    const payload: BackendAnalysisError = {
+      success: false,
+      error: {
+        message,
+      },
+    }
+
+    return NextResponse.json(payload, { status })
   }
 }
-
