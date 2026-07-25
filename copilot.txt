@@ -1,0 +1,2 @@
+Build a small web tool that audits any URL. Any language or stack you like.a) Backend: an endpoint that accepts a URL, fetches the page, and returns a JSON report with HTTP status, response
+time, page title, meta description, H1 count, images missing alt text, and approximate word count.b) Frontend: a simple page with an input field that calls your endpoint and renders the report cleanly.c) Handle failure properly: invalid URLs, timeouts, non-HTML responses - sensible errors, never a crash.Deliverables
